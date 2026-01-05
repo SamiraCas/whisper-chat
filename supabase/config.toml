@@ -1,0 +1,7 @@
+project_id = "ktjkwyxnssvftddwvylg"
+
+[functions.voice-chat]
+verify_jwt = false
+
+[functions.pessoa-dao]
+verify_jwt = false

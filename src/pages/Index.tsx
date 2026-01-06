@@ -124,7 +124,7 @@ const Index: React.FC = () => {
             <section className="text-center space-y-4">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/30 text-sm">
                 <Sparkles className="w-4 h-4 text-primary" />
-                <span className="text-primary">Powered by OpenAI Whisper</span>
+                <span className="text-primary">OpenAI</span>
               </div>
 
               <h2 className="text-3xl sm:text-5xl font-bold text-gradient">
@@ -194,7 +194,7 @@ const Index: React.FC = () => {
       {/* FOOTER */}
       <footer className="border-t border-border/50 bg-card/50 py-6">
         <div className="container max-w-6xl mx-auto px-4 text-center text-xs sm:text-sm text-muted-foreground">
-          DataCrazy Technical Challenge • React + TypeScript
+          DataCrazy Technical Challenge • Samira Castro 
         </div>
       </footer>
     </div>

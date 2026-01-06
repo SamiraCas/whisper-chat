@@ -1,12 +1,5 @@
 /**
  * EDGE FUNCTION: voice-chat
- *
- * Fluxo:
- * 1. Front envia áudio via FormData (file)
- * 2. Edge recebe o arquivo
- * 3. Whisper transcreve
- * 4. Chat gera resposta
- * 5. Retorna JSON
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -23,33 +16,29 @@ const corsHeaders = {
 };
 
 /* =======================
- * OpenAI
+ * ENV + OpenAI (SAFE)
  * ======================= */
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
 if (!OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY não configurada");
+  console.error("[BOOT] ❌ OPENAI_API_KEY NÃO CONFIGURADA");
+  throw new Error("OPENAI_API_KEY ausente");
 }
 
+console.log("[BOOT] ✅ OPENAI_API_KEY carregada");
+
 const openai = new OpenAI({
-  apiKey: OPENAI_API_KEY!,
+  apiKey: OPENAI_API_KEY,
 });
 
 /* =======================
  * Whisper
  * ======================= */
 async function transcribeAudio(file: File): Promise<string> {
-  console.log("[Whisper] Recebido:", {
-    name: file.name,
-    type: file.type,
-    size: file.size,
-  });
-
-  if (file.size === 0) {
-    throw new Error("Arquivo de áudio vazio");
+  if (!file || file.size === 0) {
+    throw new Error("Arquivo de áudio inválido ou vazio");
   }
 
-  // Garantia de compatibilidade
   const safeFile =
     file.type.includes("webm") || file.type.includes("ogg")
       ? file
@@ -57,11 +46,9 @@ async function transcribeAudio(file: File): Promise<string> {
 
   const transcription = await openai.audio.transcriptions.create({
     file: safeFile,
-    model: "whisper-1", // ✅ MODELO CORRETO
+    model: "whisper-1",
     language: "pt",
   });
-
-  console.log("[Whisper] Resultado:", transcription.text);
 
   if (!transcription.text?.trim()) {
     throw new Error("Transcrição vazia");
@@ -71,34 +58,31 @@ async function transcribeAudio(file: File): Promise<string> {
 }
 
 /* =======================
- * Chat
+ * Chat (API NOVA)
  * ======================= */
 async function generateResponse(transcript: string): Promise<string> {
-  console.log("[Chat] Prompt:", transcript.substring(0, 100));
-
-  const completion = await openai.chat.completions.create({
+  const response = await openai.responses.create({
     model: "gpt-4.1-mini",
-    messages: [
+    input: [
       {
         role: "system",
         content:
-          "Você é um assistente amigável. Responda em português brasileiro, de forma clara, objetiva e natural.",
+          "Você é um assistente amigável. Responda em português brasileiro, de forma clara e natural.",
       },
       {
         role: "user",
         content: transcript,
       },
     ],
-    temperature: 0.7,
   });
 
-  const content = completion.choices?.[0]?.message?.content;
+  const output = response.output_text;
 
-  if (!content) {
+  if (!output) {
     throw new Error("Resposta do chat vazia");
   }
 
-  return content;
+  return output;
 }
 
 /* =======================
@@ -121,15 +105,6 @@ serve(async (req: Request): Promise<Response> => {
 
   try {
     const formData = await req.formData();
-
-    console.log(
-      "[DEBUG] formData:",
-      [...formData.entries()].map(([k, v]) => [
-        k,
-        v instanceof File ? "File" : typeof v,
-      ])
-    );
-
     const file = formData.get("file");
     const transcriptOnly = formData.get("transcriptOnly") === "true";
 
@@ -153,13 +128,13 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     /* 2️⃣ Chat */
-    const response = await generateResponse(transcript);
+    const chatResponse = await generateResponse(transcript);
 
     return new Response(
       JSON.stringify({
         success: true,
         transcript,
-        response,
+        response: chatResponse,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -168,12 +143,14 @@ serve(async (req: Request): Promise<Response> => {
   } catch (err) {
     console.error("[VoiceChat] ERRO:", err);
 
-    const message =
-      err instanceof Error ? err.message : "Erro interno";
-
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        error: err instanceof Error ? err.message : "Erro interno",
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 });
